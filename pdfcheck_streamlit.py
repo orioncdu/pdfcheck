@@ -4,11 +4,11 @@ from PIL import Image, ImageChops
 import numpy as np
 from scipy.ndimage import binary_dilation
 
-st.title("Interactive PDF Pixel-by-Pixel Comparison")
+st.title("PDF Pixel-by-Pixel Comparison")
 
-# 1. Upload multiple files at once
+# 1. Upload multiple files at once with professional labeling
 uploaded_files = st.file_uploader(
-    "Upload your PDF files (you can upload as many as you like):", 
+    "Upload your PDF files (multiple files accepted; select two to compare against each other):", 
     type="pdf", 
     accept_multiple_files=True
 )
@@ -17,15 +17,18 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
     doc1 = fitz.open(stream=pdf_bytes_1, filetype="pdf")
     doc2 = fitz.open(stream=pdf_bytes_2, filetype="pdf")
 
-    if len(doc1) != len(doc2):
-        st.error(f"Page count mismatch: Base has {len(doc1)} pages vs Comparison has {len(doc2)} pages.")
-        return False
+    len1, len2 = len(doc1), len(doc2)
+    if len1 != len2:
+        st.warning(f"Page count mismatch: Base has {len1} pages, but Comparison has {len2} pages. Comparing overlapping pages...")
 
     zoom = dpi / 72
     mat = fitz.Matrix(zoom, zoom)
     identical = True
+    
+    # Compare up to the page count of the shorter document
+    min_pages = min(len1, len2)
 
-    for page_num in range(len(doc1)):
+    for page_num in range(min_pages):
         pix1 = doc1[page_num].get_pixmap(matrix=mat)
         pix2 = doc2[page_num].get_pixmap(matrix=mat)
 
@@ -58,6 +61,14 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
         else:
             st.write(f"Page {page_num + 1}: Identical.")
 
+    # Flag if one document has extra pages
+    if len1 != len2:
+        identical = False
+        if len2 > len1:
+            st.info(f"The comparison PDF has {len2 - len1} extra page(s) at the end (Pages {len1 + 1} to {len2}).")
+        else:
+            st.info(f"The base PDF has {len1 - len2} extra page(s) at the end (Pages {len2 + 1} to {len1}).")
+
     return identical
 
 # 2. If files are uploaded, show dropdown selectors
@@ -88,8 +99,11 @@ if uploaded_files and len(uploaded_files) >= 2:
             result = compare_pdfs_pixel_by_pixel(file1_bytes, file2_bytes, dilation_iterations=2)
             
             if result:
-                st.success(f"{base_choice} and {comp_choice} are completely identical pixel-by-pixel!")
+                st.success(f"PDF comparison completed between **{base_choice}** and **{comp_choice}**: They are completely identical pixel-by-pixel!")
             else:
-                st.error(f"Differences found between {base_choice} and {comp_choice}.")
+                st.error(f"PDF comparison completed between **{base_choice}** and **{comp_choice}**: Differences found and highlighted above.")
 elif uploaded_files:
     st.info("Please upload at least 2 PDF files to use the comparison selectors.")
+
+# Add the credit line at the very bottom
+st.caption("© 2026 Written by Anh Nguyen")

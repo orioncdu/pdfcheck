@@ -1,4 +1,3 @@
-!pip install pymupdf Pillow numpy
 from google.colab import files
 import fitz  # PyMuPDF
 from PIL import Image, ImageChops

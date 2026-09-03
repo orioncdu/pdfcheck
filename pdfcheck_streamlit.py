@@ -16,7 +16,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=250, dilation_iterations=2):
+def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iterations=2):
     doc1 = fitz.open(stream=pdf_bytes_1, filetype="pdf")
     doc2 = fitz.open(stream=pdf_bytes_2, filetype="pdf")
 
@@ -94,8 +94,9 @@ if uploaded_files and len(uploaded_files) >= 2:
         st.warning("Please select two different PDF files to compare.")
     else:
         if st.button("Run Comparison"):
-            file1_bytes = file_dict[base_choice].read()
-            file2_bytes = file_dict[comp_choice].read()
+            # Use .getvalue() instead of .read() to safely read bytes and avoid stream pointer issues
+            file1_bytes = file_dict[base_choice].getvalue()
+            file2_bytes = file_dict[comp_choice].getvalue()
             
             st.write(f"Comparing **{base_choice}** vs **{comp_choice}**...")
             
@@ -107,7 +108,9 @@ if uploaded_files and len(uploaded_files) >= 2:
                 st.error(f"PDF comparison completed between **{base_choice}** and **{comp_choice}**: Differences found and highlighted above.")
 elif uploaded_files:
     st.info("Please upload at least 2 PDF files to use the comparison selectors.")
+else:
+    st.info("Get started by uploading your PDF files above.")
 
 # Footer
 st.markdown("---")
-st.caption("(c) Anh nguyen 2026")
+st.caption("© 2026 Written by Anh Nguyen")

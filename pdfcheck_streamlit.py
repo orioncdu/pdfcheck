@@ -4,22 +4,21 @@ from PIL import Image, ImageChops
 import numpy as np
 from scipy.ndimage import binary_dilation
 
-st.title("PDF Pixel-by-Pixel Comparison Tool")
+st.title("Interactive PDF Pixel-by-Pixel Comparison")
 
-# Streamlit multi-file uploader
+# 1. Upload multiple files at once
 uploaded_files = st.file_uploader(
-    "Upload your PDF files (select multiple at once):", 
+    "Upload your PDF files (you can upload as many as you like):", 
     type="pdf", 
     accept_multiple_files=True
 )
 
 def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iterations=2):
-    # Open PDFs directly from bytes using PyMuPDF
     doc1 = fitz.open(stream=pdf_bytes_1, filetype="pdf")
     doc2 = fitz.open(stream=pdf_bytes_2, filetype="pdf")
 
     if len(doc1) != len(doc2):
-        st.error(f"Page count mismatch: {len(doc1)} vs {len(doc2)}")
+        st.error(f"Page count mismatch: Base has {len(doc1)} pages vs Comparison has {len(doc2)} pages.")
         return False
 
     zoom = dpi / 72
@@ -44,7 +43,7 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
             st.write(f"Page {page_num + 1}: Differences detected.")
             identical = False
 
-            # Highlight differences in bright green or yellow (great for contrast)
+            # Highlight differences in neon green
             diff_np = np.array(diff)
             mask = np.any(diff_np > 0, axis=-1)
             
@@ -52,7 +51,7 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
             mask = binary_dilation(mask, structure=struct, iterations=dilation_iterations)
 
             img2_np = np.array(img2)
-            img2_np[mask] = [0, 255, 0]  # Neon Green highlight
+            img2_np[mask] = [0, 255, 0]
 
             diff_image = Image.fromarray(img2_np)
             st.image(diff_image, caption=f"Differences on Page {page_num + 1}", use_container_width=True)
@@ -61,20 +60,36 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
 
     return identical
 
-# Process files when uploaded in pairs
+# 2. If files are uploaded, show dropdown selectors
 if uploaded_files and len(uploaded_files) >= 2:
-    for i in range(0, len(uploaded_files) - 1, 2):
-        file1 = uploaded_files[i]
-        file2 = uploaded_files[i+1]
-        
-        st.subheader(f"Comparing: {file1.name} vs {file2.name}")
-        
-        # Read file contents as bytes
-        result = compare_pdfs_pixel_by_pixel(file1.read(), file2.read(), dilation_iterations=2)
-        
-        if result:
-            st.success(f"{file1.name} and {file2.name} are completely identical pixel-by-pixel!")
-        else:
-            st.error(f"Differences found between {file1.name} and {file2.name}.")
+    # Create a mapping of file names to their actual file objects
+    file_dict = {file.name: file for file in uploaded_files}
+    file_names = list(file_dict.keys())
+
+    st.markdown("---")
+    st.subheader("Select Files to Compare")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        base_choice = st.selectbox("Base (Reference) PDF:", file_names, index=0)
+    with col2:
+        # Default the second selection to index 1 if available
+        comp_choice = st.selectbox("PDF to Compare against Base:", file_names, index=min(1, len(file_names)-1))
+
+    if base_choice == comp_choice:
+        st.warning("Please select two different PDF files to compare.")
+    else:
+        if st.button("Run Comparison"):
+            file1_bytes = file_dict[base_choice].read()
+            file2_bytes = file_dict[comp_choice].read()
+            
+            st.write(f"Comparing **{base_choice}** vs **{comp_choice}**...")
+            
+            result = compare_pdfs_pixel_by_pixel(file1_bytes, file2_bytes, dilation_iterations=2)
+            
+            if result:
+                st.success(f"{base_choice} and {comp_choice} are completely identical pixel-by-pixel!")
+            else:
+                st.error(f"Differences found between {base_choice} and {comp_choice}.")
 elif uploaded_files:
-    st.info("Please upload at least 2 PDF files to begin comparison.")
+    st.info("Please upload at least 2 PDF files to use the comparison selectors.")

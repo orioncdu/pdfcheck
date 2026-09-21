@@ -51,7 +51,7 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
 
             # Highlight differences in neon green
             diff_np = np.array(diff)
-            mask = np.any(diff_np > 50, axis=-1)
+            mask = np.any(diff_np > 100, axis=-1)
             
             struct = np.ones((3, 3), dtype=bool)
             mask = binary_dilation(mask, structure=struct, iterations=dilation_iterations)

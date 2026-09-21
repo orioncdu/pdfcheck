@@ -9,6 +9,16 @@ st.set_page_config(page_title="PDF Comparison Tool", layout="wide")
 
 st.title("PDF Pixel-by-Pixel Comparison")
 
+# Sidebar settings for user adjustments
+st.sidebar.header("Comparison Settings")
+tolerance_level = st.sidebar.slider(
+    "Sensitivity Threshold (Tolerance)", 
+    min_value=0, 
+    max_value=255, 
+    value=35, 
+    help="Higher values ignore minor anti-aliasing/font rendering noise. Lower values are stricter."
+)
+
 # 1. Upload multiple files at once with professional labeling
 uploaded_files = st.file_uploader(
     "Upload your PDF files (multiple files accepted; select two to compare against each other):", 
@@ -16,7 +26,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iterations=2):
+def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iterations=2, tolerance=35):
     doc1 = fitz.open(stream=pdf_bytes_1, filetype="pdf")
     doc2 = fitz.open(stream=pdf_bytes_2, filetype="pdf")
 
@@ -46,21 +56,26 @@ def compare_pdfs_pixel_by_pixel(pdf_bytes_1, pdf_bytes_2, dpi=150, dilation_iter
         diff = ImageChops.difference(img1, img2)
 
         if diff.getbbox():
-            st.write(f"Page {page_num + 1}: Differences detected.")
-            identical = False
-
-            # Highlight differences in neon green
+            # Apply adjustable tolerance threshold to ignore minor anti-aliasing noise
             diff_np = np.array(diff)
-            mask = np.any(diff_np > 100, axis=-1)
+            mask = np.any(diff_np > tolerance, axis=-1)
             
-            struct = np.ones((3, 3), dtype=bool)
-            mask = binary_dilation(mask, structure=struct, iterations=dilation_iterations)
+            # If after filtering out small noise, there are still real differences:
+            if np.any(mask):
+                st.write(f"Page {page_num + 1}: Real differences detected.")
+                identical = False
 
-            img2_np = np.array(img2)
-            img2_np[mask] = [0, 255, 0]
+                # Highlight differences in neon green
+                struct = np.ones((3, 3), dtype=bool)
+                mask = binary_dilation(mask, structure=struct, iterations=dilation_iterations)
 
-            diff_image = Image.fromarray(img2_np)
-            st.image(diff_image, caption=f"Differences on Page {page_num + 1}", use_container_width=True)
+                img2_np = np.array(img2)
+                img2_np[mask] = [0, 255, 0]
+
+                diff_image = Image.fromarray(img2_np)
+                st.image(diff_image, caption=f"Differences on Page {page_num + 1}", use_container_width=True)
+            else:
+                st.write(f"Page {page_num + 1}: Identical (minor noise ignored below threshold {tolerance}).")
         else:
             st.write(f"Page {page_num + 1}: Identical.")
 
@@ -98,9 +113,14 @@ if uploaded_files and len(uploaded_files) >= 2:
             file1_bytes = file_dict[base_choice].getvalue()
             file2_bytes = file_dict[comp_choice].getvalue()
             
-            st.write(f"Comparing **{base_choice}** vs **{comp_choice}**...")
+            st.write(f"Comparing **{base_choice}** vs **{comp_choice}** (Threshold: {tolerance_level})...")
             
-            result = compare_pdfs_pixel_by_pixel(file1_bytes, file2_bytes, dilation_iterations=2)
+            result = compare_pdfs_pixel_by_pixel(
+                file1_bytes, 
+                file2_bytes, 
+                dilation_iterations=2, 
+                tolerance=tolerance_level
+            )
             
             if result:
                 st.success(f"PDF comparison completed between **{base_choice}** and **{comp_choice}**: They are completely identical pixel-by-pixel!")
